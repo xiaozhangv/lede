@@ -7,29 +7,29 @@
 
 OTHER_MENU:=Other modules
 
-define KernelPackage/pwm-mediatek
+define KernelPackage/pwm-mediatek-ramips
   SUBMENU:=Other modules
   TITLE:=MT7628 PWM
-  DEPENDS:=@(TARGET_ramips_mt7628||TARGET_ramips_mt7688)
+  DEPENDS:=@(TARGET_ramips_mt76x8)
   KCONFIG:= \
 	CONFIG_PWM=y \
-	CONFIG_PWM_MEDIATEK \
+	CONFIG_PWM_MEDIATEK_RAMIPS \
 	CONFIG_PWM_SYSFS=y
   FILES:= \
-	$(LINUX_DIR)/drivers/pwm/pwm-mediatek.ko
-  AUTOLOAD:=$(call AutoProbe,pwm-mediatek)
+	$(LINUX_DIR)/drivers/pwm/pwm-mediatek-ramips.ko
+  AUTOLOAD:=$(call AutoProbe,pwm-mediatek-ramips)
 endef
 
-define KernelPackage/pwm-mediatek/description
+define KernelPackage/pwm-mediatek-ramips/description
   Kernel modules for MediaTek Pulse Width Modulator
 endef
 
-$(eval $(call KernelPackage,pwm-mediatek))
+$(eval $(call KernelPackage,pwm-mediatek-ramips))
 
 define KernelPackage/sdhci-mt7620
   SUBMENU:=Other modules
   TITLE:=MT7620 SDCI
-  DEPENDS:=@(TARGET_ramips_mt7620||TARGET_ramips_mt7628||TARGET_ramips_mt7621||TARGET_ramips_mt7688) +kmod-mmc
+  DEPENDS:=@(TARGET_ramips_mt7620||TARGET_ramips_mt76x8||TARGET_ramips_mt7621) +kmod-mmc
   KCONFIG:= \
 	CONFIG_MTK_MMC \
 	CONFIG_MTK_AEE_KDUMP=n \
@@ -47,8 +47,8 @@ I2C_RALINK_MODULES:= \
 define KernelPackage/i2c-ralink
   $(call i2c_defaults,$(I2C_RALINK_MODULES),59)
   TITLE:=Ralink I2C Controller
-  DEPENDS:=kmod-i2c-core @TARGET_ramips \
-	@!(TARGET_ramips_mt7621||TARGET_ramips_mt7628||TARGET_ramips_mt7688)
+  DEPENDS:=+kmod-i2c-core @TARGET_ramips \
+	@!(TARGET_ramips_mt7621||TARGET_ramips_mt76x8)
 endef
 
 define KernelPackage/i2c-ralink/description
@@ -64,8 +64,8 @@ I2C_MT7621_MODULES:= \
 define KernelPackage/i2c-mt7628
   $(call i2c_defaults,$(I2C_MT7621_MODULES),59)
   TITLE:=MT7628/88 I2C Controller
-  DEPENDS:=kmod-i2c-core \
-	@(TARGET_ramips_mt7628||TARGET_ramips_mt7688)
+  DEPENDS:=+kmod-i2c-core \
+	@(TARGET_ramips_mt76x8)
 endef
 
 define KernelPackage/i2c-mt7628/description
@@ -84,7 +84,8 @@ define KernelPackage/dma-ralink
 	CONFIG_DMA_RALINK
   FILES:= \
 	$(LINUX_DIR)/drivers/dma/virt-dma.ko \
-	$(LINUX_DIR)/drivers/dma/ralink-gdma.ko
+	$(LINUX_DIR)/drivers/dma/ralink-gdma.ko@lt5.4 \
+	$(LINUX_DIR)/drivers/staging/ralink-gdma/ralink-gdma.ko@ge5.4
   AUTOLOAD:=$(call AutoLoad,52,ralink-gdma)
 endef
 
@@ -104,7 +105,8 @@ define KernelPackage/hsdma-mtk
 	CONFIG_MTK_HSDMA
   FILES:= \
 	$(LINUX_DIR)/drivers/dma/virt-dma.ko \
-	$(LINUX_DIR)/drivers/dma/mtk-hsdma.ko
+	$(LINUX_DIR)/drivers/dma/mtk-hsdma.ko@lt5.4 \
+	$(LINUX_DIR)/drivers/staging/mt7621-dma/mtk-hsdma.ko@ge5.4
   AUTOLOAD:=$(call AutoLoad,53,mtk-hsdma)
 endef
 
@@ -116,7 +118,7 @@ $(eval $(call KernelPackage,hsdma-mtk))
 
 define KernelPackage/sound-mt7620
   TITLE:=MT7620 PCM/I2S Alsa Driver
-  DEPENDS:=@TARGET_ramips +kmod-sound-soc-core +kmod-regmap +kmod-dma-ralink @!TARGET_ramips_rt288x
+  DEPENDS:=@TARGET_ramips +kmod-sound-soc-core +kmod-regmap-i2c +kmod-dma-ralink @!TARGET_ramips_rt288x
   KCONFIG:= \
 	CONFIG_SND_RALINK_SOC_I2S \
 	CONFIG_SND_SIMPLE_CARD \

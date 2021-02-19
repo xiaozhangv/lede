@@ -26,34 +26,28 @@ PKG_VERSION:=$(firstword $(subst +, ,$(GCC_VERSION)))
 GCC_DIR:=$(PKG_NAME)-$(PKG_VERSION)
 
 PKG_SOURCE_URL:=@GNU/gcc/gcc-$(PKG_VERSION)
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 
-ifeq ($(PKG_VERSION),5.4.0)
-  PKG_HASH:=608df76dec2d34de6558249d8af4cbee21eceddbcb580d666f7a5a583ca3303a
+ifeq ($(PKG_VERSION),5.5.0)
+  PKG_HASH:=530cea139d82fe542b358961130c69cfde8b3d14556370b65823d2f91f0ced87
 endif
 
-ifeq ($(PKG_VERSION),6.3.0)
-  PKG_HASH:=f06ae7f3f790fbf0f018f6d40e844451e6bc3b7bc96e128e63b09825c1f8b29f
+ifeq ($(PKG_VERSION),7.5.0)
+  PKG_HASH:=b81946e7f01f90528a1f7352ab08cc602b9ccc05d4e44da4bd501c5a189ee661
 endif
 
-ifeq ($(PKG_VERSION),7.1.0)
-  PKG_HASH:=8a8136c235f64c6fef69cac0d73a46a1a09bb250776a050aec8f9fc880bebc17
+ifeq ($(PKG_VERSION),8.4.0)
+  PKG_HASH:=e30a6e52d10e1f27ed55104ad233c30bd1e99cfb5ff98ab022dc941edd1b2dd4
 endif
 
-ifneq ($(CONFIG_GCC_VERSION_6_3_ARC),)
-    PKG_VERSION:=6.3.0
-    PKG_SOURCE_URL:=https://github.com/foss-for-synopsys-dwc-arc-processors/gcc/archive/$(GCC_VERSION)
-    PKG_SOURCE:=$(PKG_NAME)-$(GCC_VERSION).tar.gz
-    PKG_HASH:=b7223e134199b1a6f71de629da6aa845790e55d28e9892143dde09b1bc878110
-    PKG_REV:=2017.03-release
-    GCC_DIR:=gcc-arc-$(PKG_REV)
-    HOST_BUILD_DIR = $(BUILD_DIR_HOST)/$(PKG_NAME)-$(GCC_VERSION)
+ifeq ($(PKG_VERSION),9.3.0)
+  PKG_HASH:=71e197867611f6054aa1119b13a0c0abac12834765fe2d81f35ac57f84f742d1
 endif
 
 PATCH_DIR=../patches/$(GCC_VERSION)
 
-BUGURL=http://www.lede-project.org/bugs/
-PKGVERSION=LEDE GCC $(PKG_VERSION) $(REVISION)
+BUGURL=http://bugs.openwrt.org/
+PKGVERSION=OpenWrt GCC $(PKG_VERSION) $(REVISION)
 
 HOST_BUILD_PARALLEL:=1
 
@@ -73,19 +67,13 @@ HOST_STAMP_CONFIGURED:=$(GCC_BUILD_DIR)/.configured
 HOST_STAMP_INSTALLED:=$(HOST_BUILD_PREFIX)/stamp/.gcc_$(GCC_VARIANT)_installed
 
 SEP:=,
-TARGET_LANGUAGES:="c,c++$(if $(CONFIG_INSTALL_LIBGCJ),$(SEP)java)$(if $(CONFIG_INSTALL_GFORTRAN),$(SEP)fortran)$(if $(CONFIG_INSTALL_GCCGO),$(SEP)go)"
+TARGET_LANGUAGES:="c,c++$(if $(CONFIG_INSTALL_GFORTRAN),$(SEP)fortran)$(if $(CONFIG_INSTALL_GCCGO),$(SEP)go)"
 
 TAR_OPTIONS += \
 	--exclude-from='$(CURDIR)/../exclude-testsuite' --exclude=gcc/ada/*.ad* \
-
-ifndef CONFIG_INSTALL_LIBGCJ
-  TAR_OPTIONS += --exclude=libjava
-endif
+	--exclude=libjava
 
 export libgcc_cv_fixed_point=no
-ifdef CONFIG_USE_UCLIBC
-  export glibcxx_cv_c99_math_tr1=no
-endif
 ifdef CONFIG_INSTALL_GCCGO
   export libgo_cv_c_split_stack_supported=no
 endif
@@ -98,7 +86,7 @@ endif
 
 GCC_CONFIGURE:= \
 	SHELL="$(BASH)" \
-	$(if $(shell gcc --version 2>&1 | grep LLVM), \
+	$(if $(shell gcc --version 2>&1 | grep -E "Apple.(LLVM|clang)"), \
 		CFLAGS="-O2 -fbracket-depth=512 -pipe" \
 		CXXFLAGS="-O2 -fbracket-depth=512 -pipe" \
 	) \
@@ -116,6 +104,7 @@ GCC_CONFIGURE:= \
 		--disable-multilib \
 		--disable-libmpx \
 		--disable-nls \
+		--disable-libssp \
 		$(GRAPHITE_CONFIGURE) \
 		--with-host-libstdcxx=-lstdc++ \
 		$(SOFT_FLOAT_CONFIG_OPTION) \
@@ -126,21 +115,21 @@ GCC_CONFIGURE:= \
 		--with-gmp=$(TOPDIR)/staging_dir/host \
 		--with-mpfr=$(TOPDIR)/staging_dir/host \
 		--with-mpc=$(TOPDIR)/staging_dir/host \
-		--disable-decimal-float
+		--disable-decimal-float \
+		--with-diagnostics-color=auto-if-env \
+		--enable-__cxa_atexit
 ifneq ($(CONFIG_mips)$(CONFIG_mipsel),)
   GCC_CONFIGURE += --with-mips-plt
 endif
 
-ifndef GCC_VERSION_4_8
-  GCC_CONFIGURE += --with-diagnostics-color=auto-if-env
+ifneq ($(CONFIG_GCC_DEFAULT_PIE),)
+  GCC_CONFIGURE+= \
+		--enable-default-pie
 endif
 
-ifneq ($(CONFIG_SSP_SUPPORT),)
+ifneq ($(CONFIG_GCC_DEFAULT_SSP),)
   GCC_CONFIGURE+= \
-		--enable-libssp
-else
-  GCC_CONFIGURE+= \
-		--disable-libssp
+		--enable-default-ssp
 endif
 
 ifneq ($(CONFIG_EXTRA_TARGET_ARCH),)
@@ -155,23 +144,24 @@ ifdef CONFIG_sparc
 		--with-long-double-128
 endif
 
-ifeq ($(LIBC),uClibc)
-  GCC_CONFIGURE+= \
-		--disable-__cxa_atexit
-else
-  GCC_CONFIGURE+= \
-		--enable-__cxa_atexit
-endif
-
 ifneq ($(GCC_ARCH),)
   GCC_CONFIGURE+= --with-arch=$(GCC_ARCH)
 endif
 
-ifneq ($(CONFIG_SOFT_FLOAT),y)
-  ifeq ($(CONFIG_arm),y)
+ifeq ($(CONFIG_arm),y)
+  GCC_CONFIGURE+= \
+	--with-cpu=$(word 1, $(subst +," ,$(CONFIG_CPU_TYPE)))
+
+  ifneq ($(CONFIG_SOFT_FLOAT),y)
     GCC_CONFIGURE+= \
+		--with-fpu=$(word 2, $(subst +, ",$(CONFIG_CPU_TYPE))) \
 		--with-float=hard
   endif
+
+  # Do not let TARGET_CFLAGS get poisoned by extra CPU optimization flags
+  # that do not belong here. The cpu,fpu type should be specified via
+  # --with-cpu and --with-fpu for ARM and not CFLAGS.
+  TARGET_CFLAGS:=$(filter-out -m%,$(call qstrip,$(TARGET_CFLAGS)))
 endif
 
 ifeq ($(CONFIG_TARGET_x86)$(CONFIG_USE_GLIBC)$(CONFIG_INSTALL_GCCGO),yyy)

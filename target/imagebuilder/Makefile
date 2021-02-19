@@ -1,4 +1,4 @@
-# 
+#
 # Copyright (C) 2006-2015 OpenWrt.org
 #
 # This is free software, licensed under the GNU General Public License v2.
@@ -44,7 +44,7 @@ endif
 	echo '## This is the local package repository, do not remove!' >> $(PKG_BUILD_DIR)/repositories.conf
 	echo 'src imagebuilder file:packages'                          >> $(PKG_BUILD_DIR)/repositories.conf
 
-	$(VERSION_SED) $(PKG_BUILD_DIR)/repositories.conf
+	$(VERSION_SED_SCRIPT) $(PKG_BUILD_DIR)/repositories.conf
 
 ifeq ($(CONFIG_IB_STANDALONE),)
 	(cd $(call FeedPackageDir,libc); $(FIND) -type f -name 'libc_*.ipk' -or -name 'kernel_*.ipk' -or -name 'kmod-*.ipk') | \
@@ -63,7 +63,8 @@ endif
 	fi
 	rm -rf \
 		$(PKG_BUILD_DIR)/target/linux/*/files{,-*} \
-		$(PKG_BUILD_DIR)/target/linux/*/patches{,-*}
+		$(PKG_BUILD_DIR)/target/linux/*/patches{,-*} \
+		$(PKG_BUILD_DIR)/target/linux/generic/{pending,backport,hack}{,-*}
 	-cp $(KERNEL_BUILD_DIR)/* $(IB_KDIR)/ # don't copy subdirectories here
 	-cp $(LINUX_DIR)/.config $(IB_LDIR)/
 	rm -f $(IB_KDIR)/root.*
@@ -85,7 +86,7 @@ endif
 	(cd $(PKG_BUILD_DIR); find staging_dir/host/bin/ $(IB_LDIR)/scripts/dtc/ -type f | \
 		$(XARGS) $(SCRIPT_DIR)/bundle-libraries.sh $(PKG_BUILD_DIR)/staging_dir/host)
 	STRIP=sstrip $(SCRIPT_DIR)/rstrip.sh $(PKG_BUILD_DIR)/staging_dir/host/bin/
-	$(TAR) -cf - -C $(BUILD_DIR) $(IB_NAME) | xz -zc -7e > $@
+	$(TAR) -cf - -C $(BUILD_DIR) $(IB_NAME) | xz -T$(if $(filter 1,$(NPROC)),2,0) -zc -7e > $@
 
 download:
 prepare:

@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=gpio-button-hotplug
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_LICENSE:=GPL-2.0
 
 include $(INCLUDE_DIR)/package.mk
@@ -33,9 +33,8 @@ define KernelPackage/gpio-button-hotplug/description
 endef
 
 MAKE_OPTS:= \
-	ARCH="$(LINUX_KARCH)" \
-	CROSS_COMPILE="$(TARGET_CROSS)" \
-	SUBDIRS="$(PKG_BUILD_DIR)"
+	$(KERNEL_MAKE_FLAGS) \
+	M="$(PKG_BUILD_DIR)"
 
 define Build/Compile
 	$(MAKE) -C "$(LINUX_DIR)" \

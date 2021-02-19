@@ -115,7 +115,6 @@ static void __init tl_wdr4900_v1_setup_arch(void)
 }
 
 machine_arch_initcall(tl_wdr4900_v1, mpc85xx_common_publish_devices);
-machine_arch_initcall(tl_wdr4900_v1, swiotlb_setup_bus_notifier);
 
 /*
  * Called very early, device-tree isn't unflattened
@@ -124,7 +123,7 @@ static int __init tl_wdr4900_v1_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
 
-	if (of_flat_dt_is_compatible(root, "tp-link,TL-WDR4900v1"))
+	if (of_flat_dt_is_compatible(root, "tplink,tl-wdr4900-v1"))
 		return 1;
 
 	return 0;

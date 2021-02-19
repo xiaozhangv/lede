@@ -4,10 +4,10 @@ PKG_NAME:=netifd
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=$(LEDE_GIT)/project/netifd.git
-PKG_SOURCE_DATE:=2017-08-27
-PKG_SOURCE_VERSION:=7d94ede3c38dd7b8e08c8a2fd8ae5ede71a2059b
-PKG_MIRROR_HASH:=967e993cdb49ddc6d6add23fa8ccbf2af798fdca6708e7937496baa4c2653957
+PKG_SOURCE_URL=$(PROJECT_GIT)/project/netifd.git
+PKG_SOURCE_DATE:=2020-09-08
+PKG_SOURCE_VERSION:=d7b614a86b815da711b5fecb10687297a70d859e
+PKG_MIRROR_HASH:=266bab9e9fecb3ad86b4cea3303765c35d8b4db00274565368f69de0fa6c05df
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 
 PKG_LICENSE:=GPL-2.0
@@ -27,7 +27,10 @@ endef
 
 TARGET_CFLAGS += \
 	-I$(STAGING_DIR)/usr/include/libnl-tiny \
-	-I$(STAGING_DIR)/usr/include
+	-I$(STAGING_DIR)/usr/include \
+	-flto
+
+TARGET_LDFLAGS += -flto -fuse-linker-plugin
 
 CMAKE_OPTIONS += \
 	-DLIBNL_LIBS=-lnl-tiny \

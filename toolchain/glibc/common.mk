@@ -7,15 +7,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=glibc
-PKG_VERSION:=2.25
+PKG_VERSION:=2.31
 
-PKG_SOURCE_URL:=@GNU/libc
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_HASH:=067bd9bb3390e79aa45911537d13c3721f1d9d3769931a30c2681bfee66f23a0
-
+PKG_SOURCE_PROTO:=git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+PKG_SOURCE_VERSION:=3a44844c97a8ca1d0798c45b5252e6a49f9cf8e1
+PKG_MIRROR_HASH:=d7206510e494b3c723173d8ec0dd2e41314da59075871c5642324688001b3f6e
+PKG_SOURCE_URL:=https://sourceware.org/git/glibc.git
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.xz
+
 HOST_BUILD_DIR:=$(BUILD_DIR_TOOLCHAIN)/$(PKG_SOURCE_SUBDIR)
 CUR_BUILD_DIR:=$(HOST_BUILD_DIR)-$(VARIANT)
+PATCH_DIR:=$(PATH_PREFIX)/patches
 
 include $(INCLUDE_DIR)/toolchain-build.mk
 
@@ -36,11 +39,11 @@ ifeq ($(ARCH),mips64)
   endif
 endif
 
-
 # -Os miscompiles w. 2.24 gcc5/gcc6
 # only -O2 tested by upstream changeset
 # "Optimize i386 syscall inlining for GCC 5"
 GLIBC_CONFIGURE:= \
+	unset LD_LIBRARY_PATH; \
 	BUILD_CC="$(HOSTCC)" \
 	$(TARGET_CONFIGURE_OPTS) \
 	CFLAGS="-O2 $(filter-out -Os,$(call qstrip,$(TARGET_CFLAGS)))" \
@@ -56,7 +59,10 @@ GLIBC_CONFIGURE:= \
 		--without-gd \
 		--without-cvs \
 		--enable-add-ons \
-		--$(if $(CONFIG_SOFT_FLOAT),without,with)-fp
+		--$(if $(CONFIG_SOFT_FLOAT),without,with)-fp \
+		  $(if $(CONFIG_PKG_CC_STACKPROTECTOR_REGULAR),--enable-stack-protector=yes) \
+		  $(if $(CONFIG_PKG_CC_STACKPROTECTOR_STRONG),--enable-stack-protector=strong) \
+		--enable-kernel=4.14.0
 
 export libc_cv_ssp=no
 export libc_cv_ssp_strong=no

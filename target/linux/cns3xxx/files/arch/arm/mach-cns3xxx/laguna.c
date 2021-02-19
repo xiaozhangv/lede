@@ -114,16 +114,17 @@ static struct laguna_board_info laguna_info __initdata;
 static struct mtd_partition laguna_nor_partitions[] = {
 	{
 		.name		= "uboot",
-		.size		= SZ_256K,
 		.offset		= 0,
+		.size		= SZ_256K,
 		.mask_flags	= MTD_WRITEABLE,
 	}, {
 		.name		= "params",
+		.offset		= MTDPART_OFS_APPEND,
 		.size		= SZ_128K,
-		.offset		= SZ_256K,
 	}, {
 		.name		= "firmware",
-		.offset		= SZ_256K + SZ_128K,
+		.offset		= MTDPART_OFS_APPEND,
+		.size		= MTDPART_SIZ_FULL,
 	},
 };
 
@@ -155,16 +156,17 @@ static struct platform_device laguna_nor_pdev = {
 static struct mtd_partition laguna_spi_partitions[] = {
 	{
 		.name		= "uboot",
-		.size		= SZ_256K,
 		.offset		= 0,
+		.size		= SZ_256K,
 		.mask_flags	= MTD_WRITEABLE,
 	}, {
 		.name		= "params",
+		.offset		= MTDPART_OFS_APPEND,
 		.size		= SZ_256K,
-		.offset		= SZ_256K,
 	}, {
 		.name		= "firmware",
-		.offset		= SZ_512K,
+		.offset		= MTDPART_OFS_APPEND,
+		.size		= MTDPART_SIZ_FULL,
 	},
 };
 
@@ -389,7 +391,7 @@ static struct plat_serial8250_port laguna_uart_data[] = {
 		.mapbase        = (CNS3XXX_UART0_BASE),
 		.irq            = IRQ_CNS3XXX_UART0,
 		.iotype         = UPIO_MEM,
-		.flags          = UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE | UPF_NO_TXEN_TEST | UPF_IOREMAP,
+		.flags          = UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE | UPF_IOREMAP,
 		.regshift       = 2,
 		.uartclk        = 24000000,
 		.type           = PORT_16550A,
@@ -397,7 +399,7 @@ static struct plat_serial8250_port laguna_uart_data[] = {
 		.mapbase        = (CNS3XXX_UART1_BASE),
 		.irq            = IRQ_CNS3XXX_UART1,
 		.iotype         = UPIO_MEM,
-		.flags          = UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE | UPF_NO_TXEN_TEST | UPF_IOREMAP,
+		.flags          = UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE | UPF_IOREMAP,
 		.regshift       = 2,
 		.uartclk        = 24000000,
 		.type           = PORT_16550A,
@@ -405,7 +407,7 @@ static struct plat_serial8250_port laguna_uart_data[] = {
 		.mapbase        = (CNS3XXX_UART2_BASE),
 		.irq            = IRQ_CNS3XXX_UART2,
 		.iotype         = UPIO_MEM,
-		.flags          = UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE | UPF_NO_TXEN_TEST | UPF_IOREMAP,
+		.flags          = UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE | UPF_IOREMAP,
 		.regshift       = 2,
 		.uartclk        = 24000000,
 		.type           = PORT_16550A,

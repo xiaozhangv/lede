@@ -3,11 +3,15 @@
 IMAGE_KERNEL = $(word 1,$^)
 IMAGE_ROOTFS = $(word 2,$^)
 
+define rootfs_align
+$(patsubst %-256k,0x40000,$(patsubst %-128k,0x20000,$(patsubst %-64k,0x10000,$(patsubst squashfs%,0x4,$(patsubst root.%,%,$(1))))))
+endef
+
 define Build/uImage
 	mkimage -A $(LINUX_KARCH) \
 		-O linux -T kernel \
 		-C $(1) -a $(KERNEL_LOADADDR) -e $(if $(KERNEL_ENTRY),$(KERNEL_ENTRY),$(KERNEL_LOADADDR)) \
-		-n '$(if $(UIMAGE_NAME),$(UIMAGE_NAME),$(call toupper,$(LINUX_KARCH)) LEDE Linux-$(LINUX_VERSION))' -d $@ $@.new
+		-n '$(if $(UIMAGE_NAME),$(UIMAGE_NAME),$(call toupper,$(LINUX_KARCH)) $(VERSION_DIST) Linux-$(LINUX_VERSION))' -d $@ $@.new
 	mv $@.new $@
 endef
 
@@ -49,6 +53,31 @@ define Build/eva-image
 	mv $@.new $@
 endef
 
+define Build/seama
+	$(STAGING_DIR_HOST)/bin/seama -i $@ \
+		-m "dev=/dev/mtdblock/$(SEAMA_MTDBLOCK)" -m "type=firmware"
+	mv $@.seama $@
+endef
+
+define Build/seama-seal
+	$(STAGING_DIR_HOST)/bin/seama -i $@ -s $@.seama \
+		-m "signature=$(SEAMA_SIGNATURE)"
+	mv $@.seama $@
+endef
+
+define Build/zyxel-ras-image
+	let \
+		newsize="$(subst k,* 1024,$(RAS_ROOTFS_SIZE))"; \
+		$(STAGING_DIR_HOST)/bin/mkrasimage \
+			-b $(RAS_BOARD) \
+			-v $(RAS_VERSION) \
+			-r $@ \
+			-s $$newsize \
+			-o $@.new \
+			$(if $(findstring separate-kernel,$(word 1,$(1))),-k $(IMAGE_KERNEL)) \
+		&& mv $@.new $@
+endef
+
 define Build/netgear-chk
 	$(STAGING_DIR_HOST)/bin/mkchkimg \
 		-o $@.new \
@@ -60,7 +89,7 @@ endef
 
 define Build/netgear-dni
 	$(STAGING_DIR_HOST)/bin/mkdniimg \
-		-B $(NETGEAR_BOARD_ID) -v LEDE.$(REVISION) \
+		-B $(NETGEAR_BOARD_ID) -v $(VERSION_DIST).$(firstword $(subst -, ,$(REVISION))) \
 		$(if $(NETGEAR_HW_ID),-H $(NETGEAR_HW_ID)) \
 		-r "$(1)" \
 		-i $@ -o $@.new
@@ -77,20 +106,28 @@ define Build/append-squashfs-fakeroot-be
 	cat $@.fakesquashfs >> $@
 endef
 
-# append a fake/empty rootfs uImage header, to fool the bootloaders
-# rootfs integrity check
-define Build/append-uImage-fakeroot-hdr
-	rm -f $@.fakeroot
+define Build/append-string
+	echo -n $(1) >> $@
+endef
+
+# append a fake/empty uImage header, to fool bootloaders rootfs integrity check
+# for example
+define Build/append-uImage-fakehdr
+	$(eval type=$(word 1,$(1)))
+	$(eval magic=$(word 2,$(1)))
+	touch $@.fakehdr
 	$(STAGING_DIR_HOST)/bin/mkimage \
-		-A $(LINUX_KARCH) -O linux -T filesystem -C none \
-		-n '$(call toupper,$(LINUX_KARCH)) LEDE fakeroot' \
+		-A $(LINUX_KARCH) -O linux -T $(type) -C none \
+		-n '$(VERSION_DIST) fake $(type)' \
+		$(if $(magic),-M $(magic)) \
+		-d $@.fakehdr \
 		-s \
-		$@.fakeroot
-	cat $@.fakeroot >> $@
+		$@.fakehdr
+	cat $@.fakehdr >> $@
 endef
 
 define Build/tplink-safeloader
-       -$(STAGING_DIR_HOST)/bin/tplink-safeloader \
+	-$(STAGING_DIR_HOST)/bin/tplink-safeloader \
 		-B $(TPLINK_BOARD_ID) \
 		-V $(REVISION) \
 		-k $(IMAGE_KERNEL) \
@@ -102,15 +139,17 @@ define Build/tplink-safeloader
 endef
 
 define Build/append-dtb
-	$(call Image/BuildDTB,$(if $(DEVICE_DTS_DIR),$(DEVICE_DTS_DIR),$(DTS_DIR))/$(DEVICE_DTS).dts,$@.dtb)
-	cat $@.dtb >> $@
+	cat $(KDIR)/image-$(firstword $(DEVICE_DTS)).dtb >> $@
 endef
 
 define Build/install-dtb
-	$(foreach dts,$(DEVICE_DTS), \
-		$(CP) \
-			$(DTS_DIR)/$(dts).dtb \
-			$(BIN_DIR)/$(IMG_PREFIX)-$(dts).dtb; \
+	$(call locked, \
+		$(foreach dts,$(DEVICE_DTS), \
+			$(CP) \
+				$(DTS_DIR)/$(dts).dtb \
+				$(BIN_DIR)/$(IMG_PREFIX)-$(dts).dtb; \
+		), \
+		install-dtb-$(IMG_PREFIX) \
 	)
 endef
 
@@ -119,6 +158,7 @@ define Build/fit
 		-D $(DEVICE_NAME) -o $@.its -k $@ \
 		$(if $(word 2,$(1)),-d $(word 2,$(1))) -C $(word 1,$(1)) \
 		-a $(KERNEL_LOADADDR) -e $(if $(KERNEL_ENTRY),$(KERNEL_ENTRY),$(KERNEL_LOADADDR)) \
+		-c $(if $(DEVICE_DTS_CONFIG),$(DEVICE_DTS_CONFIG),"config@1") \
 		-A $(LINUX_KARCH) -v $(LINUX_VERSION)
 	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage -f $@.its $@.new
 	@mv $@.new $@
@@ -134,8 +174,18 @@ define Build/lzma-no-dict
 endef
 
 define Build/gzip
-	gzip -9n -c $@ $(1) > $@.new
+	gzip -f -9n -c $@ $(1) > $@.new
 	@mv $@.new $@
+endef
+
+define Build/zip
+	mkdir $@.tmp
+	mv $@ $@.tmp/$(1)
+
+	zip -j -X \
+		$(if $(SOURCE_DATE_EPOCH),--mtime="$(SOURCE_DATE_EPOCH)") \
+		$@ $@.tmp/$(if $(1),$(1),$@)
+	rm -rf $@.tmp
 endef
 
 define Build/jffs2
@@ -185,9 +235,12 @@ define Build/append-ubi
 	rm $@.tmp
 endef
 
+define Build/append-uboot
+	dd if=$(UBOOT_PATH) >> $@
+endef
+
 define Build/pad-to
-	dd if=$@ of=$@.new bs=$(1) conv=sync
-	mv $@.new $@
+	$(call Image/pad-to,$@,$(1))
 endef
 
 define Build/pad-extra
@@ -210,9 +263,21 @@ define Build/pad-offset
 	mv $@.new $@
 endef
 
+define Build/xor-image
+	$(STAGING_DIR_HOST)/bin/xorimage -i $@ -o $@.xor $(1)
+	mv $@.xor $@
+endef
+
 define Build/check-size
-	@[ $$(($(subst k,* 1024,$(subst m, * 1024k,$(1))))) -ge "$$(stat -c%s $@)" ] || { \
+	@[ $$(($(subst k,* 1024,$(subst m, * 1024k,$(if $(1),$(1),$(IMAGE_SIZE)))))) -ge "$$(stat -c%s $@)" ] || { \
 		echo "WARNING: Image file $@ is too big" >&2; \
+		rm -f $@; \
+	}
+endef
+
+define Build/check-kernel-size
+	@[ $$(($(subst k,* 1024,$(subst m, * 1024k,$(1))))) -ge "$$(stat -c%s $(IMAGE_KERNEL))" ] || { \
+		echo "WARNING: Kernel for $@ is too big > $(1)" >&2; \
 		rm -f $@; \
 	}
 endef
@@ -223,6 +288,52 @@ define Build/combined-image
 		"$@" \
 		"$@.new"
 	@mv $@.new $@
+endef
+
+define Build/linksys-image
+	$(TOPDIR)/scripts/linksys-image.sh \
+		"$(call param_get_default,type,$(1),$(DEVICE_NAME))" \
+		$@ $@.new
+		mv $@.new $@
+endef
+
+define Build/openmesh-image
+	$(TOPDIR)/scripts/om-fwupgradecfg-gen.sh \
+		"$(call param_get_default,ce_type,$(1),$(DEVICE_NAME))" \
+		"$@-fwupgrade.cfg" \
+		"$(call param_get_default,kernel,$(1),$(IMAGE_KERNEL))" \
+		"$(call param_get_default,rootfs,$(1),$@)"
+	$(TOPDIR)/scripts/combined-ext-image.sh \
+		"$(call param_get_default,ce_type,$(1),$(DEVICE_NAME))" "$@" \
+		"$@-fwupgrade.cfg" "fwupgrade.cfg" \
+		"$(call param_get_default,kernel,$(1),$(IMAGE_KERNEL))" "kernel" \
+		"$(call param_get_default,rootfs,$(1),$@)" "rootfs"
+endef
+
+define Build/qsdk-ipq-factory-mmc
+	$(TOPDIR)/scripts/mkits-qsdk-ipq-image.sh \
+		$@.its kernel $(IMAGE_KERNEL) rootfs $(IMAGE_ROOTFS)
+	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage -f $@.its $@.new
+	@mv $@.new $@
+endef
+
+define Build/qsdk-ipq-factory-nand
+	$(TOPDIR)/scripts/mkits-qsdk-ipq-image.sh \
+		$@.its ubi $@
+	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage -f $@.its $@.new
+	@mv $@.new $@
+endef
+
+define Build/qsdk-ipq-factory-nor
+	$(TOPDIR)/scripts/mkits-qsdk-ipq-image.sh \
+		$@.its hlos $(IMAGE_KERNEL) rootfs $(IMAGE_ROOTFS)
+	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage -f $@.its $@.new
+	@mv $@.new $@
+endef
+
+define Build/senao-header
+	$(STAGING_DIR_HOST)/bin/mksenaofw $(1) -e $@ -o $@.new
+	mv $@.new $@
 endef
 
 define Build/sysupgrade-tar
@@ -242,16 +353,40 @@ define Build/tplink-v1-header
 	@mv $@.new $@
 endef
 
+# combine kernel and rootfs into one image
+# mktplinkfw <type> <optional extra arguments to mktplinkfw binary>
+# <type> is "sysupgrade" or "factory"
+#
+# -a align the rootfs start on an <align> bytes boundary
+# -j add jffs2 end-of-filesystem markers
+# -s strip padding from end of the image
+# -X reserve <size> bytes in the firmware image (hexval prefixed with 0x)
+define Build/tplink-v1-image
+	-$(STAGING_DIR_HOST)/bin/mktplinkfw \
+		-H $(TPLINK_HWID) -W $(TPLINK_HWREV) -F $(TPLINK_FLASHLAYOUT) \
+		-N "$(VERSION_DIST)" -V $(REVISION) -m $(TPLINK_HEADER_VERSION) \
+		-k $(IMAGE_KERNEL) -r $(IMAGE_ROOTFS) -o $@.new -j -X 0x40000 \
+		-a $(call rootfs_align,$(FILESYSTEM)) \
+		$(wordlist 2,$(words $(1)),$(1)) \
+		$(if $(findstring sysupgrade,$(word 1,$(1))),-s) && mv $@.new $@ || rm -f $@
+endef
+
 define Build/tplink-v2-header
 	$(STAGING_DIR_HOST)/bin/mktplinkfw2 \
-		-c -V "ver. 2.0" -B $(TPLINK_BOARD_ID) $(1) -k $@ -o $@.new
+		-c -H $(TPLINK_HWID) -W $(TPLINK_HWREV) -L $(KERNEL_LOADADDR) \
+		-E $(if $(KERNEL_ENTRY),$(KERNEL_ENTRY),$(KERNEL_LOADADDR))  \
+		-w $(TPLINK_HWREVADD) -F "$(TPLINK_FLASHLAYOUT)" \
+		-T $(TPLINK_HVERSION) -V "ver. 2.0" \
+		-k $@ -o $@.new $(1)
 	@mv $@.new $@
 endef
 
 define Build/tplink-v2-image
 	$(STAGING_DIR_HOST)/bin/mktplinkfw2 \
-		-a 0x4 -j -V "ver. 2.0" -B $(TPLINK_BOARD_ID) $(1) \
-		-k $(IMAGE_KERNEL) -r $(IMAGE_ROOTFS) -o $@.new
+		-H $(TPLINK_HWID) -W $(TPLINK_HWREV) \
+		-w $(TPLINK_HWREVADD) -F "$(TPLINK_FLASHLAYOUT)" \
+		-T $(TPLINK_HVERSION) -V "ver. 2.0" -a 0x4 -j \
+		-k $(IMAGE_KERNEL) -r $(IMAGE_ROOTFS) -o $@.new $(1)
 	cat $@.new >> $@
 	rm -rf $@.new
 endef
@@ -261,20 +396,35 @@ json_quote=$(subst ','\'',$(subst ",\",$(1)))
 metadata_devices=$(if $(1),$(subst "$(space)","$(comma)",$(strip $(foreach v,$(1),"$(call json_quote,$(v))"))))
 metadata_json = \
 	'{ $(if $(IMAGE_METADATA),$(IMAGE_METADATA)$(comma)) \
+		"metadata_version": "1.0", \
 		"supported_devices":[$(call metadata_devices,$(1))], \
 		"version": { \
 			"dist": "$(call json_quote,$(VERSION_DIST))", \
 			"version": "$(call json_quote,$(VERSION_NUMBER))", \
 			"revision": "$(call json_quote,$(REVISION))", \
-			"board": "$(call json_quote,$(BOARD))" \
+			"target": "$(call json_quote,$(TARGETID))", \
+			"board": "$(call json_quote,$(if $(BOARD_NAME),$(BOARD_NAME),$(DEVICE_NAME)))" \
 		} \
 	}'
 
 define Build/append-metadata
-	$(if $(SUPPORTED_DEVICES),echo $(call metadata_json,$(SUPPORTED_DEVICES)) | fwtool -I - $@)
+	$(if $(SUPPORTED_DEVICES),-echo $(call metadata_json,$(SUPPORTED_DEVICES)) | fwtool -I - $@)
+	[ ! -s "$(BUILD_KEY)" -o ! -s "$(BUILD_KEY).ucert" -o ! -s "$@" ] || { \
+		cp "$(BUILD_KEY).ucert" "$@.ucert" ;\
+		usign -S -m "$@" -s "$(BUILD_KEY)" -x "$@.sig" ;\
+		ucert -A -c "$@.ucert" -x "$@.sig" ;\
+		fwtool -S "$@.ucert" "$@" ;\
+	}
 endef
 
 define Build/kernel2minor
 	kernel2minor -k $@ -r $@.new $(1)
 	mv $@.new $@
+endef
+
+# Convert a raw image into a $1 type image.
+# E.g. | qemu-image vdi
+define Build/qemu-image
+	qemu-img convert -f raw -O $1 $@ $@.new
+	@mv $@.new $@
 endef

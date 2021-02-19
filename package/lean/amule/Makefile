@@ -9,8 +9,9 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=aMule
 PKG_VERSION:=2.3.2
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_REV=4b87b20
+
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-r$(PKG_REV).tar.bz2
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
@@ -27,7 +28,7 @@ include $(INCLUDE_DIR)/nls.mk
 define Package/amule/config
 config AMULE_CRYPTOPP_STATIC_LINKING
 	bool "Link libcryptopp statically"
-	default y
+	default n
 endef
 
 define Package/amule
@@ -36,7 +37,7 @@ define Package/amule
   CATEGORY:=Network
   TITLE:=A multi-platform eMule-like ed2k client
   URL:=http://www.amule.org/
-  DEPENDS:=+libpng +libpthread +libncurses +libreadline +libwxbase +libupnp \
+  DEPENDS:=+libpng +libpthread +libncurses +libreadline +libwxbase +libupnp +libbfd \
 	$(ICONV_DEPENDS) $(INTL_DEPENDS) +!AMULE_CRYPTOPP_STATIC_LINKING:libcryptopp
 endef
 

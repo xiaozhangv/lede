@@ -7,33 +7,26 @@
 
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
-include $(INCLUDE_DIR)/version.mk
-include $(INCLUDE_DIR)/feeds.mk
 
 PKG_NAME:=opkg
 PKG_RELEASE:=1
 PKG_FLAGS:=essential
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://git.lede-project.org/project/opkg-lede.git
-PKG_SOURCE_DATE:=2017-07-28
-PKG_SOURCE_VERSION:=4bd8601ebd95c130e504cc724b0c5eb163050982
-PKG_MIRROR_HASH:=adb2d610185a83fb630ccd3f0c80cb8acfd89260e0a5e598aadb8c8f0d903cf5
+PKG_SOURCE_URL:=https://git.openwrt.org/project/opkg-lede.git
+PKG_SOURCE_DATE:=2020-05-07
+PKG_SOURCE_VERSION:=f2166a89b7e96e2c60002959731eebc5f45fa318
+PKG_MIRROR_HASH:=67e55cd9fb93bb5b62e2c7b11946483b5570287bd1504aa2a3886d11f8b750b9
 
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=COPYING
 
 PKG_MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
 
-PKG_FLAGS := nonshared
-
-PKG_CONFIG_DEPENDS := \
-	CONFIG_SIGNED_PACKAGES \
-	CONFIG_TARGET_INIT_PATH \
-	CONFIG_PER_FEED_REPO \
-	CONFIG_PER_FEED_REPO_ADD_DISABLED \
-	CONFIG_PER_FEED_REPO_ADD_COMMENTED \
-	$(foreach feed,$(FEEDS_INSTALLED),CONFIG_FEED_$(feed))
+# Extend depends from version.mk
+PKG_CONFIG_DEPENDS += \
+	CONFIG_SIGNATURE_CHECK \
+	CONFIG_TARGET_INIT_PATH
 
 PKG_BUILD_PARALLEL:=1
 HOST_BUILD_PARALLEL:=1
@@ -50,7 +43,7 @@ define Package/opkg
   CATEGORY:=Base system
   TITLE:=opkg package manager
   DEPENDS:=+uclient-fetch +libpthread +libubox
-  URL:=https://git.lede-project.org/?p=project/opkg-lede.git
+  URL:=$(PKG_SOURCE_URL)
   MENU:=1
 endef
 
@@ -93,12 +86,10 @@ define Package/opkg/install
 	$(INSTALL_DIR) $(1)/etc/uci-defaults
 	$(INSTALL_DATA) ./files/customfeeds.conf $(1)/etc/opkg/customfeeds.conf
 	$(INSTALL_DATA) ./files/opkg$(2).conf $(1)/etc/opkg.conf
-	$(call FeedSourcesAppend,$(1)/etc/opkg/distfeeds.conf)
-	$(VERSION_SED) $(1)/etc/opkg/distfeeds.conf
 	$(INSTALL_BIN) ./files/20_migrate-feeds $(1)/etc/uci-defaults/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/opkg-cl $(1)/bin/opkg
-  ifneq ($(CONFIG_SIGNED_PACKAGES),)
-	echo "option check_signature 1" >> $(1)/etc/opkg.conf
+  ifneq ($(CONFIG_SIGNATURE_CHECK),)
+	echo "option check_signature" >> $(1)/etc/opkg.conf
   endif
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/opkg-key $(1)/usr/sbin/

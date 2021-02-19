@@ -8,7 +8,7 @@ include $(INCLUDE_DIR)/package.mk
 
 define KernelPackage/hwmon-gsc
   SUBMENU:=Hardware Monitoring Support
-  DEPENDS:=@TARGET_imx6||TARGET_cns3xxx kmod-hwmon-core +kmod-i2c-core
+  DEPENDS:=@TARGET_imx6||TARGET_cns3xxx +kmod-hwmon-core +kmod-i2c-core
   TITLE:=Driver for the Gateworks System Controller
   AUTOLOAD:=$(call AutoLoad,60,gsc)
   FILES:=$(PKG_BUILD_DIR)/gsc.ko
@@ -20,9 +20,8 @@ endef
 
 define Build/Compile
 	$(MAKE) -C "$(LINUX_DIR)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
-		SUBDIRS="$(PKG_BUILD_DIR)" \
+		$(KERNEL_MAKE_FLAGS) \
+		M="$(PKG_BUILD_DIR)" \
 		EXTRA_CFLAGS="$(BUILDFLAGS)" \
 		modules
 endef

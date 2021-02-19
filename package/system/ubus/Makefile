@@ -4,16 +4,17 @@ PKG_NAME:=ubus
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=$(LEDE_GIT)/project/ubus.git
-PKG_SOURCE_DATE:=2017-02-18
-PKG_SOURCE_VERSION:=34c6e818e431cc53478a0f7c7c1eca07d194d692
-PKG_MIRROR_HASH:=fc4f1121faa4f5b8fa52ee25460b98b2e60e7d245aefa70e7f76c56ce5628fd5
+PKG_SOURCE_URL=$(PROJECT_GIT)/project/ubus.git
+PKG_SOURCE_DATE:=2020-02-05
+PKG_SOURCE_VERSION:=171469e3138cce191892e20b6fd35b52c9368064
+PKG_MIRROR_HASH:=b4f1a3d70c2685c2aee2724b980b2ff747f8662f74d04d8be1c5a5e950b0e2ef
 CMAKE_INSTALL:=1
 
 PKG_LICENSE:=LGPL-2.1
 PKG_LICENSE_FILES:=
-
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
+
+PKG_ASLR_PIE_REGULAR:=1
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -36,7 +37,7 @@ define Package/libubus
   SECTION:=libs
   CATEGORY:=Libraries
   DEPENDS:=+libubox
-  ABI_VERSION:=$(PKG_VERSION)
+  ABI_VERSION:=20191227
   TITLE:=OpenWrt RPC client library
 endef
 
@@ -47,7 +48,8 @@ define Package/libubus-lua
   TITLE:=Lua binding for the OpenWrt RPC client
 endef
 
-TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include
+TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include -flto
+TARGET_LDFLAGS += -flto
 
 CMAKE_OPTIONS = \
 	-DLUAPATH=/usr/lib/lua

@@ -9,14 +9,14 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=w1-gpio-custom
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 include $(INCLUDE_DIR)/package.mk
 
 define KernelPackage/w1-gpio-custom
   SUBMENU:=W1 support
   TITLE:=Custom GPIO-based 1-wire device
-  DEPENDS:=kmod-w1 +kmod-w1-master-gpio
+  DEPENDS:=kmod-w1 +kmod-w1-master-gpio @LINUX_4_14
   FILES:=$(PKG_BUILD_DIR)/w1-gpio-custom.ko
   KCONFIG:=
 endef
@@ -33,9 +33,8 @@ EXTRA_CFLAGS:= \
 	$(patsubst CONFIG_%, -DCONFIG_%=1, $(patsubst %=y,%,$(filter %=y,$(EXTRA_KCONFIG))))
 
 MAKE_OPTS:= \
-	ARCH="$(LINUX_KARCH)" \
-	CROSS_COMPILE="$(TARGET_CROSS)" \
-	SUBDIRS="$(PKG_BUILD_DIR)" \
+	$(KERNEL_MAKE_FLAGS) \
+	M="$(PKG_BUILD_DIR)" \
 	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
 	$(EXTRA_KCONFIG)
 

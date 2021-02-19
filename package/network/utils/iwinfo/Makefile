@@ -10,9 +10,10 @@ PKG_NAME:=libiwinfo
 PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL=$(LEDE_GIT)/project/iwinfo.git
-PKG_SOURCE_DATE:=2017-08-23
-PKG_SOURCE_VERSION:=c1a03e8231a5d8b348b70a182d256725c98a3b0b
+PKG_SOURCE_URL=$(PROJECT_GIT)/project/iwinfo.git
+PKG_SOURCE_DATE:=2020-06-03
+PKG_SOURCE_VERSION:=2faa20e5e9d107b97e393a4eb458370e80b4d720
+PKG_MIRROR_HASH:=c5094a1751cbc610a91d21b7ddbec85c4f80d51dddb249fdcabb327ab1e2523f
 PKG_MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
 PKG_LICENSE:=GPL-2.0
 
@@ -22,6 +23,7 @@ PKG_CONFIG_DEPENDS := \
 	CONFIG_PACKAGE_kmod-brcm-wl \
 	CONFIG_PACKAGE_kmod-brcm-wl-mini \
 	CONFIG_PACKAGE_kmod-brcm-wl-mimo \
+	CONFIG_PACKAGE_kmod-mt7615d_dbdc \
 	CONFIG_PACKAGE_kmod-cfg80211
 
 include $(INCLUDE_DIR)/package.mk
@@ -31,8 +33,8 @@ define Package/libiwinfo
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=Generalized Wireless Information Library (iwinfo)
-  DEPENDS:=+PACKAGE_kmod-cfg80211:libnl-tiny +libuci
-  ABI_VERSION:=$(PKG_RELEASE)
+  DEPENDS:=+PACKAGE_kmod-cfg80211:libnl-tiny +libuci +libubus
+  ABI_VERSION:=20200105
 endef
 
 define Package/libiwinfo/description
@@ -74,6 +76,7 @@ IWINFO_BACKENDS := \
 	$(if $(CONFIG_PACKAGE_kmod-brcm-wl),wl) \
 	$(if $(CONFIG_PACKAGE_kmod-brcm-wl-mini),wl) \
 	$(if $(CONFIG_PACKAGE_kmod-brcm-wl-mimo),wl) \
+	$(if $(CONFIG_PACKAGE_kmod-mt7615d_dbdc),ra) \
 	$(if $(CONFIG_PACKAGE_kmod-cfg80211),nl80211)
 
 TARGET_CFLAGS += \

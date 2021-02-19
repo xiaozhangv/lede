@@ -8,7 +8,6 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=ltq-adsl-mei
 PKG_RELEASE:=1
-PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/ltq-adsl-mei-$(BUILD_VARIANT)/
 
 PKG_MAINTAINER:=John Crispin <john@phrozen.org>
 PKG_CHECK_FORMAT_SECURITY:=0
@@ -23,8 +22,8 @@ define KernelPackage/ltq-adsl-mei-template
   URL:=http://www.lantiq.com/
   VARIANT:=$(1)
   DEPENDS:=@$(2)
-  FILES:=$(PKG_BUILD_DIR)/ltq_mei_$(1).ko
-  AUTOLOAD:=$(call AutoLoad,50,ltq_mei_$(1))
+  FILES:=$(PKG_BUILD_DIR)/drv_mei_cpe.ko
+  AUTOLOAD:=$(call AutoLoad,50,drv_mei_cpe)
 endef
 
 KernelPackage/ltq-adsl-danube-mei=$(call KernelPackage/ltq-adsl-mei-template,danube,(TARGET_lantiq_xway||TARGET_lantiq_xway_legacy))

@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=lzo
 PKG_VERSION:=2.10
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=http://www.oberhumer.com/opensource/lzo/download/
@@ -28,6 +28,7 @@ define Package/liblzo
   CATEGORY:=Libraries
   TITLE:=A real-time data compression library
   URL:=http://www.oberhumer.com/opensource/lzo/
+  ABI_VERSION:=2
 endef
 
 define Package/liblzo/description
@@ -42,10 +43,6 @@ CONFIGURE_ARGS += \
 TARGET_CFLAGS += $(FPIC)
 MAKE_FLAGS += CFLAGS_O="$(TARGET_CFLAGS)"
 
-ifeq ($(CONFIG_i386)$(CONFIG_x86_64),)
-  TARGET_CFLAGS += -DLZO_CFG_NO_UNALIGNED=1
-endif
-
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include $(1)/usr/lib
 	$(CP) $(PKG_INSTALL_DIR)/usr/include/lzo $(1)/usr/include/
@@ -54,7 +51,7 @@ endef
 
 define Package/liblzo/install
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/liblzo2.so* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/liblzo2.so.* $(1)/usr/lib/
 endef
 
 $(eval $(call BuildPackage,liblzo))

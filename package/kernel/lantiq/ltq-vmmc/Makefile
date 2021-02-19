@@ -10,14 +10,13 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=drv_vmmc
 PKG_VERSION:=1.9.0
-PKG_RELEASE:=2
+PKG_RELEASE:=4
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_HASH:=707f515eb727c032418c4da67d7e86884bb56cdc2a606e8f6ded6057d8767e57
 PKG_SOURCE_URL:=http://mirror2.openwrt.org/sources
 PKG_MAINTAINER:=John Crispin <john@phrozen.org>
 
-PKG_USE_MIPS16:=0
 PKG_CHECK_FORMAT_SECURITY:=0
 PKG_FIXUP:=autoreconf
 
@@ -27,7 +26,7 @@ define KernelPackage/ltq-vmmc
   SUBMENU:=Voice over IP
   TITLE:=TAPI LL driver for Voice Macro
   URL:=http://www.lantiq.com/
-  DEPENDS:=@(TARGET_lantiq_falcon||TARGET_lantiq_xway||TARGET_lantiq_xrx200) +kmod-ltq-tapi
+  DEPENDS:=@(TARGET_lantiq_xway||TARGET_lantiq_xrx200) +kmod-ltq-tapi
   FILES:=$(PKG_BUILD_DIR)/src/drv_vmmc.ko
   AUTOLOAD:=$(call AutoProbe,drv_vmmc)
 endef
@@ -171,7 +170,7 @@ endef
 define KernelPackage/ltq-vmmc/install
 	$(INSTALL_DIR) $(1)/etc/init.d $(1)/$(FW_DIR)
 	$(INSTALL_BIN) ./files/vmmc.init $(1)/etc/init.d/vmmc
-	$(CP) $(PKG_BUILD_DIR)/firmware/$(FW_SOURCE) $(1)/$(FW_DIR)/$(FW_TARGET)
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/firmware/$(FW_SOURCE) $(1)/$(FW_DIR)/$(FW_TARGET)
 	ln -s /$(FW_DIR)/$(FW_TARGET) $(1)/$(FW_DIR)/$(FW_TARGET_GENERIC)
 	$(CP) $(PKG_BUILD_DIR)/coef/$(COEF_SRC) $(1)/$(FW_DIR)/$(COEF_TARGET)
 	$(CP) $(PKG_BUILD_DIR)/coef/$(COEF_SRC_FXO) $(1)/$(FW_DIR)/$(COEF_TARGET_FXO)

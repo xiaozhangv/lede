@@ -7,117 +7,76 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
-define Build/append-ls-rcw
+LS_SD_KERNELPART_SIZE = 40
+LS_SD_KERNELPART_OFFSET = 16
+LS_SD_ROOTFSPART_OFFSET = 64
+LS_SD_IMAGE_SIZE = $(shell echo $$((($(LS_SD_ROOTFSPART_OFFSET) + \
+	$(CONFIG_TARGET_ROOTFS_PARTSIZE)))))
+
+# The limitation of flash sysupgrade.bin is 1MB dtb + 16MB kernel + 32MB rootfs
+LS_SYSUPGRADE_IMAGE_SIZE = 49m
+
+define Image/Prepare
+	# Build .dtb for all boards we may run on
+	$(foreach dts,$(DEVICE_DTS_LIST),
+		$(call Image/BuildDTB,$(DTS_DIR)/$(dts).dts,$(DTS_DIR)/$(dts).dtb)
+	)
+endef
+
+define Build/ls-clean
 	rm -f $@
-	dd if=$(STAGING_DIR_IMAGE)/$(1)-rcw.bin >> $@
 endef
 
-define Build/append-ls-uboot
-	dd if=$(STAGING_DIR_IMAGE)/$(1)-$(SUBTARGET)-uboot.bin >> $@
+define Build/ls-append
+	dd if=$(STAGING_DIR_IMAGE)/$(1) >> $@
 endef
 
-define Build/append-ls-fman
-	dd if=$(STAGING_DIR_IMAGE)/$(1)-fman.bin >> $@
-endef
-
-define Build/append-ls-dtb
-	$(call Image/BuildDTB,$(DTS_DIR)/$(1).dts,$(DTS_DIR)/$(1).dtb)
+define Build/ls-append-dtb
 	dd if=$(DTS_DIR)/$(1).dtb >> $@
 endef
 
-define Build/append-ls-rootfs-ext4
-	$(STAGING_DIR_HOST)/bin/make_ext4fs -l $(word 2,$(1)) -b 4096 -i 6000 -m 0 -J $(KDIR)/$(word 1,$(1))-$(word 2,$(1)).root.ext4 $(TARGET_DIR)
-	dd if=$(KDIR)/$(word 1,$(1))-$(word 2,$(1)).root.ext4 >> $@
+define Build/ls-append-kernel
+	mkdir -p $@.tmp && \
+	cp $(IMAGE_KERNEL) $@.tmp/fitImage && \
+	make_ext4fs -J -L kernel -l "$(LS_SD_KERNELPART_SIZE)M" "$@.kernel.part" "$@.tmp" && \
+	dd if=$@.kernel.part >> $@ && \
+	rm -rf $@.tmp && \
+	rm -f $@.kernel.part
 endef
 
-define Device/Default
-  PROFILES = Default
-  FILESYSTEMS := squashfs
-  KERNEL := kernel-bin | gzip | uImage gzip
-  DEVICE_DTS :=
-  IMAGES = firmware.bin
-
-ifeq ($(SUBTARGET),64b)
-  KERNEL_LOADADDR = 0x80080000
-  KERNEL_ENTRY_POINT = 0x80080000
-endif
-ifeq ($(SUBTARGET),32b)
-  KERNEL_LOADADDR = 0x80008000
-  KERNEL_ENTRY_POINT = 0x80008000
-endif
+define Build/ls-append-sdhead
+	./gen_sdcard_head_img.sh $(STAGING_DIR_IMAGE)/$(1)-sdcard-head.img \
+		$(LS_SD_KERNELPART_OFFSET) $(LS_SD_KERNELPART_SIZE) \
+		$(LS_SD_ROOTFSPART_OFFSET) $(CONFIG_TARGET_ROOTFS_PARTSIZE)
+	dd if=$(STAGING_DIR_IMAGE)/$(1)-sdcard-head.img >> $@
 endef
 
-define Device/ls1043ardb
-  DEVICE_TITLE := ls1043ardb-$(SUBTARGET)
-  DEVICE_PACKAGES += rcw-layerscape-ls1043ardb uboot-layerscape-$(SUBTARGET)-ls1043ardb fman-layerscape-ls1043ardb
-ifeq ($(SUBTARGET),64b)
-  DEVICE_DTS = freescale/fsl-ls1043a-rdb
-endif
-ifeq ($(SUBTARGET),32b)
-  DEVICE_DTS = ../../../arm64/boot/dts/freescale/fsl-ls1043a-rdb
-endif
-  IMAGE/firmware.bin = append-ls-rcw $(1) | pad-to 1M | append-ls-uboot $(1) | pad-to 3M | \
-  					append-ls-fman $(1) | pad-to 4M | append-ls-dtb $$(DEVICE_DTS) | pad-to 5M | \
-  					append-kernel | pad-to 10M | append-rootfs | pad-rootfs | check-size 67108865
+define Build/traverse-fit
+	./mkits-multiple-config.sh -o $@.its -A $(LINUX_KARCH) \
+		-v $(LINUX_VERSION) -k $@ -a $(KERNEL_LOADADDR) \
+		-e $(if $(KERNEL_ENTRY),$(KERNEL_ENTRY),$(KERNEL_LOADADDR)) \
+		-C gzip -c 1 -c 2 \
+		-d $(DEVICE_DTS_DIR)/freescale/traverse-ls1043s.dtb \
+		-D "Traverse_LS1043S" -n "ls1043s" -a $(FDT_LOADADDR) -c 1 \
+		-d $(DEVICE_DTS_DIR)/freescale/traverse-ls1043v.dtb \
+		-D "Traverse_LS1043V" -n "ls1043v" -a $(FDT_LOADADDR) -c 2
+	PATH=$(LINUX_DIR)/scripts/dtc:$(PATH) mkimage -f $@.its $@.new
+	@mv -f $@.new $@
 endef
-TARGET_DEVICES += ls1043ardb
 
-define Device/ls1046ardb
-  DEVICE_TITLE := ls1046ardb-$(SUBTARGET)
-  DEVICE_PACKAGES += rcw-layerscape-ls1046ardb uboot-layerscape-$(SUBTARGET)-ls1046ardb fman-layerscape-ls1046ardb
-ifeq ($(SUBTARGET),64b)
-  DEVICE_DTS = freescale/fsl-ls1046a-rdb
-endif
-ifeq ($(SUBTARGET),32b)
-  DEVICE_DTS = ../../../arm64/boot/dts/freescale/fsl-ls1046a-rdb
-endif
-  IMAGE/firmware.bin = append-ls-rcw $(1) | pad-to 1M | append-ls-uboot $(1) | pad-to 3M | \
-  					append-ls-fman $(1) | pad-to 4M | append-ls-dtb $$(DEVICE_DTS) | pad-to 5M | \
-  					append-kernel | pad-to 10M | append-ls-rootfs-ext4 $(1) 22M | check-size 33554433
+define Device/fix-sysupgrade
+  DEVICE_COMPAT_VERSION := 2.0
+  DEVICE_COMPAT_MESSAGE := DTB was added to sysupgrade. Image format is different. \
+	To use sysupgrade You need to change firmware partition in bootargs to "49m@0xf00000(firmware)" and saveenv. \
+	After that, You can use "sysupgrade -F".
 endef
-TARGET_DEVICES += ls1046ardb
 
-define Device/ls1012ardb
-  DEVICE_TITLE := ls1012ardb-$(SUBTARGET)
-  DEVICE_PACKAGES += rcw-layerscape-ls1012ardb uboot-layerscape-$(SUBTARGET)-ls1012ardb kmod-ppfe ppfe-ls1012ardb
-ifeq ($(SUBTARGET),64b)
-  DEVICE_DTS = freescale/fsl-ls1012a-rdb
-endif
-ifeq ($(SUBTARGET),32b)
-  DEVICE_DTS = ../../../arm64/boot/dts/freescale/fsl-ls1012a-rdb
-endif
-  IMAGE/firmware.bin = append-ls-rcw $(1) | pad-to 1M | append-ls-uboot $(1) | pad-to 3M | \
-  					append-ls-dtb $$(DEVICE_DTS) | pad-to 4M | append-kernel | pad-to 9M | \
-  					append-ls-rootfs-ext4 $(1) 23M | check-size 33554433
+define Device/rework-sdcard-images
+  DEVICE_COMPAT_VERSION := 2.0
+  DEVICE_COMPAT_MESSAGE := SD-card images were changed to squashfs + ext4 overlay combined images. \
+	It is required to flash the entire sd-card again and manually copy config.
 endef
-TARGET_DEVICES += ls1012ardb
 
-define Device/ls1088ardb
-  DEVICE_TITLE := ls1088ardb-$(SUBTARGET)
-  DEVICE_PACKAGES += rcw-layerscape-ls1088ardb uboot-layerscape-$(SUBTARGET)-ls1088ardb mc-binary-ls1088ardb
-ifeq ($(SUBTARGET),64b)
-  DEVICE_DTS = freescale/fsl-ls1088a-rdb
-endif
-ifeq ($(SUBTARGET),32b)
-  DEVICE_DTS = ../../../arm64/boot/dts/freescale/fsl-ls1088a-rdb
-endif
-  IMAGE/firmware.bin = append-ls-dtb $$(DEVICE_DTS) | pad-to 1M | append-kernel | pad-to 6M | \
-  					append-ls-rootfs-ext4 $(1) 17M | check-size 24117249
-endef
-TARGET_DEVICES += ls1088ardb
-
-define Device/ls2088ardb
-  DEVICE_TITLE := ls2088ardb-$(SUBTARGET)
-  DEVICE_PACKAGES += rcw-layerscape-ls2088ardb uboot-layerscape-$(SUBTARGET)-ls2088ardb mc-binary-ls2088ardb
-ifeq ($(SUBTARGET),64b)
-  DEVICE_DTS = freescale/fsl-ls2088a-rdb
-endif
-ifeq ($(SUBTARGET),32b)
-  DEVICE_DTS = ../../../arm64/boot/dts/freescale/fsl-ls2088a-rdb
-endif
-  IMAGE/firmware.bin = append-ls-dtb $$(DEVICE_DTS) | pad-to 1M | append-kernel | pad-to 6M | \
-					append-rootfs | pad-rootfs | check-size 24117249
-endef
-TARGET_DEVICES += ls2088ardb
+include $(SUBTARGET).mk
 
 $(eval $(call BuildImage))
